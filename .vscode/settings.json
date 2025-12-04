@@ -1,0 +1,10 @@
+{
+    // Code Runner가 사용하는 Python 명령을 Poetry로 강제
+    "code-runner.executorMap": {
+        "python": "poetry run python"
+    },
+    // 현재 파일 디렉터리를 작업 디렉터리로
+    "code-runner.fileDirectoryAsCwd": true,
+    // 터미널에서 실행 (env 적용 확인하기 쉬움)
+    "code-runner.runInTerminal": true
+}
