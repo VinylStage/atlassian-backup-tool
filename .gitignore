@@ -270,3 +270,5 @@ $RECYCLE.BIN/
 
 # End of https://www.toptal.com/developers/gitignore/api/python,visualstudiocode,macos,linux,windows,dotenv
 
+### Custom ###
+data/
