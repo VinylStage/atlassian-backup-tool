@@ -1,93 +1,11 @@
-# # # parser.py
-# # import json
-
-# # with open("./data/grometric-space-confluence_pages_backup.json", "r") as f:
-# #     data = json.load(f)
-    
-# # # print(len(data))
-# # # print(json.dumps(data[0], indent=4, ensure_ascii=False))
-
-# # first_data = data[3]
-# # # json.load(first_data)
-# # # html_data = first_data["body"]["storage"]["value"]
-# # print(json.dumps(first_data, indent=4, ensure_ascii=False))
-
-# # # with open("./data/sample.html", "w", encoding="utf-8") as f:
-# # #     f.write(html_data)
-
-# # # for c in data:
-# # #     body = c["body"]["storage"]["value"]
-# # #     title = c["title"]
-# # #     # print(body)
-# # #     # json.dumps(body, indent=4, ensure_ascii=False)
-# # #     # title = body["title"]
-# # #     print(title)
-# # #     # with open(f"./data/'{title}'.html", "w", encoding="utf-8") as f:
-# # #     #     f.write(body)
-
-# # parser.py
-# import json
-# from pathlib import Path
-
-# INPUT_PATH = Path("./data/grometric-space-confluence_pages_backup.json")
-# OUTPUT_DIR = Path("./data/html_pages")  # 원하면 "./data" 로 바꿔도 됨
-# OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
-
-
-# def main():
-#     with INPUT_PATH.open("r", encoding="utf-8") as f:
-#         data = json.load(f)
-
-#     print(f"총 {len(data)} 개의 페이지를 처리합니다.")
-
-#     count = 0
-#     for page in data:
-#         page_id = page.get("id")
-#         title = page.get("title", "")
-#         body_html = (
-#             page.get("body", {})
-#             .get("storage", {})
-#             .get("value", "")
-#         )
-
-#         # id나 body가 없으면 스킵
-#         if not page_id or not body_html:
-#             print(f"[SKIP] id 또는 body 없음 → page: {page_id!r}, title: {title!r}")
-#             continue
-
-#         # 파일명: {id}.html
-#         out_path = OUTPUT_DIR / f"{page_id}.html"
-
-#         # 간단한 HTML 래핑
-#         html_doc = f"""<!DOCTYPE html>
-# <html lang="ko">
-# <head>
-#     <meta charset="utf-8">
-#     <title>{title}</title>
-# </head>
-# <body>
-#     <h1>{title}</h1>
-#     {body_html}
-# </body>
-# </html>
-# """
-
-#         out_path.write_text(html_doc, encoding="utf-8")
-#         count += 1
-
-#     print(f"완료: {count} 개의 HTML 파일 생성됨 → {OUTPUT_DIR.resolve()}")
-
-
-# if __name__ == "__main__":
-#     main()
-
 # parser.py
+
 import json
 import html
 from pathlib import Path
 
-INPUT_PATH = Path("./data/grometric-space-confluence_pages_backup.json")
-OUTPUT_ROOT = Path("./data/exported_pages")
+INPUT_PATH = Path("./data/pages_from_space_1572879.json")
+OUTPUT_ROOT = Path("./data/space_1572879")
 
 
 def build_output_dir(page: dict) -> Path:

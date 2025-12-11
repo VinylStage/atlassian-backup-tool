@@ -10,7 +10,8 @@ requires-python = ">=3.13"
 dependencies = [
     "beautifulsoup4 (>=4.14.3,<5.0.0)",
     "python-dotenv (>=1.2.1,<2.0.0)",
-    "requests (>=2.32.5,<3.0.0)"
+    "requests (>=2.32.5,<3.0.0)",
+    "atlassian-python-api (>=4.0.7,<5.0.0)"
 ]
 
 
