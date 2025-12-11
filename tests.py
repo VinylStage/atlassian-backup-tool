@@ -9,9 +9,10 @@ config = dotenv_values(".env")
 
 
 def init_session():
+    domain = config["DOMAIN"]
     session = requests.Session()
     confluence = Confluence(
-        url="https://grometric.atlassian.net",
+        url=f"https://{domain}",
         username=config["EMAIL"],
         password=config["API_TOKEN"],
         session=session,
@@ -62,7 +63,7 @@ if __name__ == "__main__":
 
     res_data = get_all_pages_by_space_id(space_info, confluence, space_name)
 
-    with open(f"./data/${space_name}.json", "w", encoding="utf-8") as f:
+    with open(f"./data/{space_name}.json", "w", encoding="utf-8") as f:
         json.dump(res_data, f, ensure_ascii=False, indent=4)
 
-    print("sample.json 으로 저장 완료")
+    print(f"{space_name}.json 으로 저장 완료")
