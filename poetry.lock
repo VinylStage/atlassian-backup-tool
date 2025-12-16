@@ -201,6 +201,20 @@ wrapt = ">=1.10,<3"
 dev = ["PyTest", "PyTest-Cov", "bump2version (<1)", "setuptools ; python_version >= \"3.12\"", "tox"]
 
 [[package]]
+name = "html-to-markdown"
+version = "2.14.2"
+description = "High-performance HTML to Markdown converter powered by Rust with a clean Python API"
+optional = false
+python-versions = ">=3.10"
+groups = ["main"]
+files = [
+    {file = "html_to_markdown-2.14.2-cp310-abi3-macosx_11_0_arm64.whl", hash = "sha256:412e08b5689e0f1e8e439b5225e603c274011ea2b49b1afe8daef21079a28b5b"},
+    {file = "html_to_markdown-2.14.2-cp310-abi3-manylinux2014_x86_64.manylinux_2_17_x86_64.whl", hash = "sha256:d887f82fc32c4807073e0ebc175722868c0768568577f20de270f0cda0b64749"},
+    {file = "html_to_markdown-2.14.2-cp310-abi3-win_amd64.whl", hash = "sha256:2d4fd2524bc0b89e6e97a932ea18caa0da05330c7757841b9e4e299bd29c6554"},
+    {file = "html_to_markdown-2.14.2.tar.gz", hash = "sha256:de9fd2403cdab91f52f148e8d1eedeb65b147d3ed43a14beffa3406eeff1a643"},
+]
+
+[[package]]
 name = "idna"
 version = "3.11"
 description = "Internationalized Domain Names in Applications (IDNA)"
@@ -465,4 +479,4 @@ dev = ["pytest", "setuptools"]
 [metadata]
 lock-version = "2.1"
 python-versions = ">=3.13"
-content-hash = "84d25491bd0af3f343b7d0a0a3a7dd734aedbeee6d01264f814e9c302f64905b"
+content-hash = "2d4ed04774f2da46296b6f1380e97f00549288578b00ddb93714fd218675dab5"
