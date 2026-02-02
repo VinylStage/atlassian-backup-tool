@@ -142,9 +142,9 @@ Pygments 라이브러리를 사용하여 코드 블록에 언어별 구문 강�
 | 외부 URL 이미지 (`ri:url`) | GitHub, 외부 서버 이미지 | URL 그대로 사용 |
 
 ### 포맷별 처리
-- **HTML**: 상대 경로 (`./{PAGE_ID}_attachments/image.png`) 또는 외부 URL
-- **Markdown**: 마크다운 문법 (`![alt](./{PAGE_ID}_attachments/image.png)`)
-- **PDF**: 절대 경로로 이미지 임베드 (`file://.../{PAGE_ID}_attachments/image.png`)
+- **HTML**: 상대 경로 (`./attachments/image.png`) 또는 외부 URL
+- **Markdown**: 마크다운 문법 (`![alt](./attachments/image.png)`)
+- **PDF**: 절대 경로로 이미지 임베드 (`file://.../attachments/image.png`)
 
 ### 첨부파일 자동 다운로드
 - 페이지의 모든 첨부파일/이미지가 자동으로 다운로드됩니다
@@ -161,11 +161,11 @@ python parser.py <input_json> [output_dir] [format] [space_name]
 **예시:**
 ```bash
 # HTML로 변환
-python parser.py ./data/pages_from_space_1572879.json ./data/output html
+python parser.py ./data/1572879_MySpace/_meta/pages.json ./data/output html
 
 # PDF로 변환
-python parser.py ./data/pages_from_space_1572879.json ./data/output pdf
+python parser.py ./data/1572879_MySpace/_meta/pages.json ./data/output pdf
 
 # 전체 포맷으로 변환
-python parser.py ./data/pages_from_space_1572879.json ./data/output all
+python parser.py ./data/1572879_MySpace/_meta/pages.json ./data/output all
 ```

@@ -65,7 +65,7 @@ python main.py
    - `[4]` PDF
    - `[5]` 전체
 
-백업 결과는 `data/space_{SPACE_ID}/` 디렉터리에 저장됩니다.
+백업 결과는 `data/{SPACE_ID}_{SPACE_NAME}/` 디렉터리에 저장됩니다.
 
 ### 트리 구조 조회
 
