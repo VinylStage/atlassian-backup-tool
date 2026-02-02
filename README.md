@@ -46,45 +46,70 @@ API_TOKEN=your-api-token
 
 ## 사용 방법
 
-### 통합 백업 (권장)
-
 ```bash
 python main.py
 ```
 
-실행하면 대화형 프롬프트가 표시됩니다:
+실행하면 메인 메뉴가 표시됩니다:
 
 ```
-2025-01-15 10:30:00 - main - INFO - Confluence 백업 작업을 시작합니다.
-2025-01-15 10:30:01 - main - INFO - 백업할 Space를 선택해주세요:
+============================================================
+  Confluence Backup Tool
+============================================================
+  [1] 백업 및 변환
+  [2] 트리 구조 조회
+  [3] 종료
+============================================================
+```
+
+### 1. 백업 및 변환
+
+Space를 선택하고 원하는 출력 포맷으로 변환합니다:
+
+```
+백업할 Space를 선택해주세요:
   [1] Engineering Wiki (ID: 1572879)
   [2] Product Documentation (ID: 1843726)
-  [3] Team Handbook (ID: 2019384)
 번호를 입력하세요: 1
-2025-01-15 10:30:05 - main - INFO - 선택된 Space: 'Engineering Wiki' (ID: 1572879)
-2025-01-15 10:30:05 - main - INFO - 출력 포맷을 선택해주세요:
+
+출력 포맷을 선택해주세요:
   [1] HTML (CSS 포함된 문서)
   [2] Markdown (코드 블록 변환 포함)
-  [3] HTML + Markdown (둘 다)
-번호를 입력하세요: 3
-2025-01-15 10:30:08 - main - INFO - 선택된 출력 포맷: both
-2025-01-15 10:30:15 - main - INFO - 데이터를 성공적으로 저장했습니다. -> ./data/pages_from_space_1572879.json
-2025-01-15 10:30:15 - main - INFO - ==========================================================
-2025-01-15 10:30:15 - main - INFO - 페이지 데이터 다운로드 완료. 변환을 시작합니다...
-2025-01-15 10:30:20 - main - INFO - ==========================================================
-2025-01-15 10:30:20 - main - INFO - 백업 및 변환이 완료되었습니다!
-2025-01-15 10:30:20 - main - INFO - 원본 JSON: ./data/pages_from_space_1572879.json
-2025-01-15 10:30:20 - main - INFO - 출력 디렉터리: /path/to/data/space_1572879
-2025-01-15 10:30:20 - main - INFO -   HTML: 45개 파일, JSON 메타: 50개
-2025-01-15 10:30:20 - main - INFO -   Markdown: 45개 파일 (스킵: 5개)
+  [3] HTML + Markdown
+  [4] PDF (인쇄용 문서)
+  [5] 전체 (HTML + Markdown + PDF)
+번호를 입력하세요: 5
 ```
 
-### 단독 파싱 (기존 JSON 파일 변환)
+### 2. 트리 구조 조회
+
+Space의 페이지 계층 구조를 트리 형태로 확인합니다:
+
+```
+📁 Space: Engineering Wiki (ID: 1572879)
+   총 50개 페이지
+============================================================
+  📂 Getting Started (ID: 12345)
+    📄 Installation (ID: 67890)
+    📄 Configuration (ID: 67891)
+  📂 API Reference (ID: 12346)
+    📄 Authentication (ID: 67892)
+============================================================
+
+📊 통계:
+   총 페이지: 50개
+   루트 페이지: 5개
+   최대 깊이: 3단계
+
+트리 구조를 JSON으로 저장할까요? (y/n):
+```
+
+### 단독 파싱 (CLI)
 
 이미 다운로드된 JSON 파일을 변환할 때 사용합니다:
 
 ```bash
-python parser.py <input_json> [output_dir] [format]
+python parser.py <input_json> [output_dir] [format] [space_name]
 ```
 
 **예시:**
@@ -92,20 +117,21 @@ python parser.py <input_json> [output_dir] [format]
 # HTML로 변환
 python parser.py ./data/pages_from_space_1572879.json ./data/output html
 
-# Markdown으로 변환
-python parser.py ./data/pages_from_space_1572879.json ./data/output markdown
+# PDF로 변환
+python parser.py ./data/pages_from_space_1572879.json ./data/output pdf
 
-# 둘 다 변환
-python parser.py ./data/pages_from_space_1572879.json ./data/output both
+# 전체 포맷으로 변환
+python parser.py ./data/pages_from_space_1572879.json ./data/output all
 ```
 
 ## 프로젝트 구조
 
 ```
 atlassian-backup-tool/
-├── main.py              # 진입점, 대화형 백업 흐름 (다운로드 + 변환 통합)
-├── confluence_client.py # Confluence Cloud API 클라이언트 (atlassian-python-api 사용)
-├── parser.py            # JSON → HTML/Markdown 변환
+├── main.py              # 진입점, 메인 메뉴 및 대화형 흐름
+├── confluence_client.py # Confluence Cloud API 클라이언트
+├── parser.py            # JSON → HTML/Markdown/PDF 변환
+├── tree_builder.py      # 트리 구조 생성 및 출력
 ├── utils.py             # 로깅 유틸리티
 ├── pyproject.toml       # Poetry 프로젝트 설정
 ├── requirements.txt     # Python 의존성 (pip용)
@@ -121,38 +147,28 @@ atlassian-backup-tool/
 ```
 data/
 ├── pages_from_space_{SPACE_ID}.json              # 원본 API 응답 데이터
+├── tree_{SPACE_ID}.json                          # 트리 구조 (선택적)
 └── space_{SPACE_ID}/
     ├── html/                                     # HTML 변환 결과
     │   └── space-{SPACE_ID}_{SPACE_NAME}/
-    │       ├── folder-root/                      # 최상위 페이지
+    │       ├── folder-root/
     │       │   ├── {PAGE_ID}_{TITLE}.html
-    │       │   └── {PAGE_ID}_{TITLE}.json        # 메타데이터
-    │       └── folder-{PARENT_ID}_{PARENT_TITLE}/ # 하위 페이지
+    │       │   └── {PAGE_ID}_{TITLE}.json
+    │       └── folder-{PARENT_ID}_{PARENT_TITLE}/
     │           ├── {PAGE_ID}_{TITLE}.html
     │           └── {PAGE_ID}_{TITLE}.json
-    └── markdown/                                 # Markdown 변환 결과
+    ├── markdown/                                 # Markdown 변환 결과
+    │   └── space-{SPACE_ID}_{SPACE_NAME}/
+    │       ├── folder-root/
+    │       │   └── {PAGE_ID}_{TITLE}.md
+    │       └── folder-{PARENT_ID}_{PARENT_TITLE}/
+    │           └── {PAGE_ID}_{TITLE}.md
+    └── pdf/                                      # PDF 변환 결과
         └── space-{SPACE_ID}_{SPACE_NAME}/
-            ├── folder-root/                      # 최상위 페이지
-            │   └── {PAGE_ID}_{TITLE}.md
-            └── folder-{PARENT_ID}_{PARENT_TITLE}/ # 하위 페이지
-                └── {PAGE_ID}_{TITLE}.md
-```
-
-**예시:**
-```
-data/space_1572879/
-├── html/
-│   └── space-1572879_Engineering_Wiki/
-│       ├── folder-root/
-│       │   └── 12345_Getting_Started.html
-│       └── folder-67890_Setup_Guide/
-│           └── 11111_Installation.html
-└── markdown/
-    └── space-1572879_Engineering_Wiki/
-        ├── folder-root/
-        │   └── 12345_Getting_Started.md
-        └── folder-67890_Setup_Guide/
-            └── 11111_Installation.md
+            ├── folder-root/
+            │   └── {PAGE_ID}_{TITLE}.pdf
+            └── folder-{PARENT_ID}_{PARENT_TITLE}/
+                └── {PAGE_ID}_{TITLE}.pdf
 ```
 
 ## 출력 포맷
@@ -166,3 +182,8 @@ data/space_1572879/
 - Confluence 코드 매크로를 마크다운 코드 블록으로 변환
 - HTML을 마크다운으로 자동 변환 (html-to-markdown 라이브러리 사용)
 - 메타데이터는 HTML 주석으로 포함
+
+### PDF
+- HTML 문서를 PDF로 변환 (WeasyPrint 사용)
+- 인쇄 및 오프라인 열람에 적합
+- CSS 스타일이 적용된 깔끔한 레이아웃
