@@ -124,7 +124,7 @@ def interactive_backup_flow():
         logger.info("==========================================================")
 
         output_root = Path(f"./data/space_{target_space_id}")
-        results = parse_pages(pages, output_root, output_format)
+        results = parse_pages(pages, output_root, output_format, target_space_name)
 
         # 7. 결과 출력
         logger.info("==========================================================")

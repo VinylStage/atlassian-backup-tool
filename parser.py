@@ -25,11 +25,17 @@ CODE_MACRO_RE = re.compile(
 
 
 def safe_filename(s: str) -> str:
-    """파일명으로 사용할 수 있도록 문자열 정리"""
+    """파일명으로 사용할 수 있도록 문자열 정리 (특수문자/공백 -> 언더바)"""
     s = (s or "").strip()
-    s = re.sub(r"[\\/:*?\"<>|]", "_", s)
-    s = re.sub(r"\s+", " ", s)
+    s = re.sub(r"[\\/:*?\"<>|\s]+", "_", s)  # 특수문자 + 공백 -> _
+    s = re.sub(r"_+", "_", s)  # 연속 언더바 정리
+    s = s.strip("_")
     return s[:120] or "untitled"
+
+
+def build_page_lookup(pages: list) -> dict:
+    """페이지 ID -> 제목 매핑 생성"""
+    return {page.get("id"): page.get("title", "") for page in pages}
 
 
 def confluence_code_macro_to_fence(html_content: str) -> str:
@@ -46,17 +52,30 @@ def confluence_code_macro_to_fence(html_content: str) -> str:
     return convert(CODE_MACRO_RE.sub(_repl, html_content))
 
 
-def build_output_dir(page: dict, output_root: Path) -> Path:
+def build_output_dir(
+    page: dict,
+    output_root: Path,
+    space_name: str = "",
+    page_lookup: dict | None = None,
+) -> Path:
     """
-    space-id / folder-id 기준으로 디렉터리 생성 경로 결정
+    space-id_name / folder-id_name 기준으로 디렉터리 생성 경로 결정
     """
     space_id = page.get("spaceId", "unknown-space")
     parent_id = page.get("parentId")
 
-    space_dir = output_root / f"space-{space_id}"
+    # Space 디렉터리: space-{ID}_{NAME}
+    space_safe = safe_filename(space_name)
+    space_dir_name = f"space-{space_id}_{space_safe}" if space_safe else f"space-{space_id}"
+    space_dir = output_root / space_dir_name
 
     if parent_id:
-        folder_dir = space_dir / f"folder-{parent_id}"
+        # 부모 페이지 제목 조회
+        parent_title = ""
+        if page_lookup:
+            parent_title = safe_filename(page_lookup.get(parent_id, ""))
+        folder_name = f"folder-{parent_id}_{parent_title}" if parent_title else f"folder-{parent_id}"
+        folder_dir = space_dir / folder_name
     else:
         folder_dir = space_dir / "folder-root"
 
@@ -185,15 +204,23 @@ def build_html_doc(page_id: str, title: str, body_html: str, page: dict) -> str:
 """
 
 
-def convert_to_html(pages: list, output_root: Path) -> dict:
+def convert_to_html(
+    pages: list,
+    output_root: Path,
+    space_name: str = "",
+) -> dict:
     """
     페이지 데이터를 HTML 파일로 변환합니다.
 
     :param pages: 페이지 데이터 리스트
     :param output_root: 출력 루트 디렉터리
+    :param space_name: Space 이름
     :return: {"html_count": int, "json_count": int}
     """
     output_root.mkdir(parents=True, exist_ok=True)
+
+    # 부모 페이지 제목 조회용 lookup 생성
+    page_lookup = build_page_lookup(pages)
 
     html_count = 0
     json_count = 0
@@ -207,10 +234,11 @@ def convert_to_html(pages: list, output_root: Path) -> dict:
             logger.warning("[SKIP] id 없음 → 이 항목은 건너뜀")
             continue
 
-        out_dir = build_output_dir(page, output_root)
+        safe_title = safe_filename(title)
+        out_dir = build_output_dir(page, output_root, space_name, page_lookup)
 
-        # 메타 JSON 저장
-        meta_path = out_dir / f"{page_id}.json"
+        # 메타 JSON 저장: {id}_{title}.json
+        meta_path = out_dir / f"{page_id}_{safe_title}.json"
         meta_path.write_text(
             json.dumps(page, indent=4, ensure_ascii=False),
             encoding="utf-8",
@@ -223,24 +251,32 @@ def convert_to_html(pages: list, output_root: Path) -> dict:
             )
             continue
 
-        # HTML 저장
+        # HTML 저장: {id}_{title}.html
         html_doc = build_html_doc(page_id, title, body_html, page)
-        html_path = out_dir / f"{page_id}.html"
+        html_path = out_dir / f"{page_id}_{safe_title}.html"
         html_path.write_text(html_doc, encoding="utf-8")
         html_count += 1
 
     return {"html_count": html_count, "json_count": json_count}
 
 
-def convert_to_markdown(pages: list, output_root: Path) -> dict:
+def convert_to_markdown(
+    pages: list,
+    output_root: Path,
+    space_name: str = "",
+) -> dict:
     """
     페이지 데이터를 Markdown 파일로 변환합니다.
 
     :param pages: 페이지 데이터 리스트
     :param output_root: 출력 루트 디렉터리
+    :param space_name: Space 이름
     :return: {"md_count": int, "skipped_count": int}
     """
     output_root.mkdir(parents=True, exist_ok=True)
+
+    # 부모 페이지 제목 조회용 lookup 생성
+    page_lookup = build_page_lookup(pages)
 
     md_count = 0
     skipped_count = 0
@@ -266,11 +302,17 @@ def convert_to_markdown(pages: list, output_root: Path) -> dict:
         safe_title = safe_filename(title)
         md_body = confluence_code_macro_to_fence(body_storage)
 
-        # 디렉터리 구조: parent_id_parent_type/page_id_title.md
+        # Space 디렉터리
+        space_safe = safe_filename(space_name)
+        space_dir_name = f"space-{space_id}_{space_safe}" if space_safe else f"space-{space_id}"
+
+        # 디렉터리 구조: space-{id}_{name}/folder-{parent_id}_{parent_title}/
         if parent_id:
-            file_dir = output_root / f"{parent_id}_{parent_type}"
+            parent_title = safe_filename(page_lookup.get(parent_id, ""))
+            folder_name = f"folder-{parent_id}_{parent_title}" if parent_title else f"folder-{parent_id}"
+            file_dir = output_root / space_dir_name / folder_name
         else:
-            file_dir = output_root / "root"
+            file_dir = output_root / space_dir_name / "folder-root"
 
         file_dir.mkdir(parents=True, exist_ok=True)
         file_path = file_dir / f"{page_id}_{safe_title}.md"
@@ -290,6 +332,7 @@ def parse_pages(
     pages: list,
     output_root: Path,
     output_format: str = "html",
+    space_name: str = "",
 ) -> dict:
     """
     페이지 데이터를 지정된 포맷으로 변환합니다.
@@ -297,13 +340,14 @@ def parse_pages(
     :param pages: 페이지 데이터 리스트
     :param output_root: 출력 루트 디렉터리
     :param output_format: "html", "markdown", 또는 "both"
+    :param space_name: Space 이름
     :return: 변환 결과 통계
     """
     results = {}
 
     if output_format in ("html", "both"):
         html_output = output_root / "html"
-        html_result = convert_to_html(pages, html_output)
+        html_result = convert_to_html(pages, html_output, space_name)
         results["html"] = html_result
         logger.info(
             "HTML 변환 완료: %d개 HTML, %d개 JSON",
@@ -313,7 +357,7 @@ def parse_pages(
 
     if output_format in ("markdown", "both"):
         md_output = output_root / "markdown"
-        md_result = convert_to_markdown(pages, md_output)
+        md_result = convert_to_markdown(pages, md_output, space_name)
         results["markdown"] = md_result
         logger.info(
             "Markdown 변환 완료: %d개 MD, %d개 스킵",
@@ -329,18 +373,19 @@ if __name__ == "__main__":
     import sys
 
     if len(sys.argv) < 2:
-        print("사용법: python parser.py <input_json> [output_dir] [format]")
+        print("사용법: python parser.py <input_json> [output_dir] [format] [space_name]")
         print("  format: html, markdown, both (기본값: html)")
         sys.exit(1)
 
     input_path = Path(sys.argv[1])
     output_dir = Path(sys.argv[2]) if len(sys.argv) > 2 else Path("./data/output")
     fmt = sys.argv[3] if len(sys.argv) > 3 else "html"
+    space_name_arg = sys.argv[4] if len(sys.argv) > 4 else ""
 
     with input_path.open("r", encoding="utf-8") as f:
         data = json.load(f)
 
     print(f"총 {len(data)} 개의 페이지를 처리합니다.")
-    result = parse_pages(data, output_dir, fmt)
+    result = parse_pages(data, output_dir, fmt, space_name_arg)
     print(f"변환 완료: {result}")
     print(f"출력 디렉터리: {output_dir.resolve()}")
