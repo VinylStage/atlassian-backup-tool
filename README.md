@@ -16,6 +16,14 @@ cd atlassian-backup-tool
 ```
 
 2. 의존성 설치:
+
+**Poetry 사용 (권장):**
+```bash
+poetry install
+poetry shell
+```
+
+**pip 사용:**
 ```bash
 pip install -r requirements.txt
 ```
@@ -85,7 +93,8 @@ atlassian-backup-tool/
 ├── confluence_client.py # Confluence Cloud API 클라이언트
 ├── parser.py            # JSON → HTML 변환
 ├── utils.py             # 로깅 유틸리티
-├── requirements.txt     # Python 의존성
+├── pyproject.toml       # Poetry 프로젝트 설정
+├── requirements.txt     # Python 의존성 (pip용)
 ├── .env                 # 환경 설정 (직접 생성 필요)
 ├── data/                # 백업 데이터 출력 디렉터리
 └── logs/                # 로그 파일 디렉터리
