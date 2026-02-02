@@ -116,23 +116,43 @@ atlassian-backup-tool/
 
 ## 출력 디렉터리 구조
 
+파일명과 폴더명에 ID와 이름이 함께 표시됩니다. 특수문자와 공백은 언더바(`_`)로 치환됩니다.
+
 ```
 data/
-├── pages_from_space_{SPACE_ID}.json    # 원본 API 응답 데이터
+├── pages_from_space_{SPACE_ID}.json              # 원본 API 응답 데이터
 └── space_{SPACE_ID}/
-    ├── html/                           # HTML 변환 결과
-    │   └── space-{SPACE_ID}/
-    │       ├── folder-root/            # 최상위 페이지
-    │       │   ├── {PAGE_ID}.html
-    │       │   └── {PAGE_ID}.json      # 메타데이터
-    │       └── folder-{PARENT_ID}/     # 하위 페이지
-    │           ├── {PAGE_ID}.html
-    │           └── {PAGE_ID}.json
-    └── markdown/                       # Markdown 변환 결과
-        ├── root/                       # 최상위 페이지
-        │   └── {PAGE_ID}_{TITLE}.md
-        └── {PARENT_ID}_{PARENT_TYPE}/  # 하위 페이지
-            └── {PAGE_ID}_{TITLE}.md
+    ├── html/                                     # HTML 변환 결과
+    │   └── space-{SPACE_ID}_{SPACE_NAME}/
+    │       ├── folder-root/                      # 최상위 페이지
+    │       │   ├── {PAGE_ID}_{TITLE}.html
+    │       │   └── {PAGE_ID}_{TITLE}.json        # 메타데이터
+    │       └── folder-{PARENT_ID}_{PARENT_TITLE}/ # 하위 페이지
+    │           ├── {PAGE_ID}_{TITLE}.html
+    │           └── {PAGE_ID}_{TITLE}.json
+    └── markdown/                                 # Markdown 변환 결과
+        └── space-{SPACE_ID}_{SPACE_NAME}/
+            ├── folder-root/                      # 최상위 페이지
+            │   └── {PAGE_ID}_{TITLE}.md
+            └── folder-{PARENT_ID}_{PARENT_TITLE}/ # 하위 페이지
+                └── {PAGE_ID}_{TITLE}.md
+```
+
+**예시:**
+```
+data/space_1572879/
+├── html/
+│   └── space-1572879_Engineering_Wiki/
+│       ├── folder-root/
+│       │   └── 12345_Getting_Started.html
+│       └── folder-67890_Setup_Guide/
+│           └── 11111_Installation.html
+└── markdown/
+    └── space-1572879_Engineering_Wiki/
+        ├── folder-root/
+        │   └── 12345_Getting_Started.md
+        └── folder-67890_Setup_Guide/
+            └── 11111_Installation.md
 ```
 
 ## 출력 포맷
