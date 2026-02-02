@@ -44,7 +44,22 @@ API_TOKEN=your-api-token
 python main.py
 ```
 
-실행하면 백업할 Space를 선택하는 대화형 프롬프트가 표시됩니다. 선택한 Space의 모든 페이지가 `./data/` 디렉터리에 JSON 파일로 저장됩니다.
+실행하면 백업할 Space를 선택하는 대화형 프롬프트가 표시됩니다:
+
+```
+2025-01-15 10:30:00 - main - INFO - Confluence 백업 작업을 시작합니다.
+2025-01-15 10:30:01 - main - INFO - 백업할 Space를 선택해주세요:
+  [1] Engineering Wiki (ID: 1572879)
+  [2] Product Documentation (ID: 1843726)
+  [3] Team Handbook (ID: 2019384)
+번호를 입력하세요: 1
+2025-01-15 10:30:05 - main - INFO - 선택된 Space: 'Engineering Wiki' (ID: 1572879)
+2025-01-15 10:30:10 - main - INFO - 데이터를 성공적으로 저장했습니다. -> ./data/pages_from_space_1572879.json
+2025-01-15 10:30:10 - main - INFO - ==========================================================
+2025-01-15 10:30:10 - main - INFO - 페이지 데이터 다운로드가 완료되었습니다.
+```
+
+선택한 Space의 모든 페이지가 `./data/` 디렉터리에 JSON 파일로 저장됩니다.
 
 ### 2. HTML 변환
 
