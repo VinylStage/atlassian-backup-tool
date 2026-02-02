@@ -19,49 +19,152 @@ atlassian-backup-tool/
 
 ## 출력 디렉터리 구조
 
-디렉터리 구조는 Confluence 페이지의 실제 계층 구조를 반영합니다.
+### 개요
 
-특수문자와 공백은 언더바(`_`)로 치환됩니다.
+백업된 데이터의 디렉터리 구조는 **Confluence 페이지의 실제 계층 구조를 그대로 반영**합니다.
+
+Confluence에서 페이지 A 아래에 페이지 B가 있고, B 아래에 페이지 C가 있다면:
+```
+Confluence:                    로컬 디렉터리:
+Space                          data/{SPACE_ID}_{SPACE_NAME}/
+└── Page A (루트)              └── pages/
+    └── Page B (자식)              └── {A_ID}_Page_A/
+        └── Page C (손자)              └── {B_ID}_Page_B/
+                                           └── {C_ID}_Page_C/
+```
+
+### 디렉터리 구조 상세
 
 ```
 data/{SPACE_ID}_{SPACE_NAME}/
-├── _meta/
-│   ├── pages.json          # 원본 API 응답 데이터
-│   └── tree.json           # 트리 구조 (선택적)
-└── pages/
-    ├── {ROOT_PAGE_ID}_{TITLE}/
-    │   ├── page.html
-    │   ├── page.md
-    │   ├── page.pdf
-    │   ├── meta.json
-    │   ├── attachments/
-    │   │   └── image.png
-    │   └── {CHILD_PAGE_ID}_{TITLE}/      # 자식 페이지 (중첩)
+├── _meta/                              # 메타데이터 디렉터리
+│   ├── pages.json                      # 전체 페이지 원본 API 응답
+│   └── tree.json                       # 트리 구조 JSON (선택적)
+└── pages/                              # 페이지 콘텐츠 디렉터리
+    ├── {ROOT_PAGE_ID}_{TITLE}/         # 루트 페이지 (parentId 없음)
+    │   ├── page.html                   # HTML 변환 결과
+    │   ├── page.md                     # Markdown 변환 결과
+    │   ├── page.pdf                    # PDF 변환 결과
+    │   ├── meta.json                   # 개별 페이지 메타데이터
+    │   ├── attachments/                # 첨부파일 디렉터리
+    │   │   ├── image.png
+    │   │   └── document.pdf
+    │   └── {CHILD_PAGE_ID}_{TITLE}/    # 자식 페이지 (중첩)
     │       ├── page.html
     │       ├── page.md
     │       ├── page.pdf
     │       ├── meta.json
     │       ├── attachments/
-    │       └── {GRANDCHILD_ID}_{TITLE}/  # 손자 페이지
+    │       └── {GRANDCHILD_ID}_{TITLE}/ # 손자 페이지 (계속 중첩)
     │           └── ...
-    └── {ANOTHER_ROOT_ID}_{TITLE}/
+    └── {ANOTHER_ROOT_ID}_{TITLE}/      # 다른 루트 페이지
         └── ...
 ```
+
+### 구체적인 예시
+
+Confluence Space "Engineering Wiki" (ID: 1572879)에 다음과 같은 페이지 구조가 있다면:
+
+```
+Engineering Wiki (Space)
+├── Overview (ID: 1001)
+│   ├── Getting Started (ID: 1002)
+│   │   └── Installation Guide (ID: 1003)
+│   └── API Reference (ID: 1004)
+└── Release Notes (ID: 1005)
+    └── v2.0 Release (ID: 1006)
+```
+
+백업 후 로컬 디렉터리 구조:
+
+```
+data/1572879_Engineering_Wiki/
+├── _meta/
+│   ├── pages.json
+│   └── tree.json
+└── pages/
+    ├── 1001_Overview/
+    │   ├── page.html
+    │   ├── page.md
+    │   ├── page.pdf
+    │   ├── meta.json
+    │   ├── attachments/
+    │   ├── 1002_Getting_Started/
+    │   │   ├── page.html
+    │   │   ├── page.md
+    │   │   ├── meta.json
+    │   │   ├── attachments/
+    │   │   └── 1003_Installation_Guide/
+    │   │       ├── page.html
+    │   │       ├── page.md
+    │   │       └── meta.json
+    │   └── 1004_API_Reference/
+    │       ├── page.html
+    │       ├── page.md
+    │       └── meta.json
+    └── 1005_Release_Notes/
+        ├── page.html
+        ├── page.md
+        ├── meta.json
+        └── 1006_v2_0_Release/
+            ├── page.html
+            ├── page.md
+            └── meta.json
+```
+
+### 폴더명 규칙
+
+| 구성 요소 | 형식 | 예시 |
+|----------|------|------|
+| Space 폴더 | `{SPACE_ID}_{SPACE_NAME}` | `1572879_Engineering_Wiki` |
+| 페이지 폴더 | `{PAGE_ID}_{PAGE_TITLE}` | `1001_Overview` |
+| 특수문자/공백 | 언더바(`_`)로 치환 | `v2.0 Release` → `v2_0_Release` |
+| 최대 길이 | 120자 제한 | 긴 제목은 잘림 |
 
 ### 파일명 규칙
 
 | 파일 | 설명 |
 |------|------|
-| `page.html` | HTML 변환 결과 |
+| `page.html` | HTML 변환 결과 (CSS 포함) |
 | `page.md` | Markdown 변환 결과 |
-| `page.pdf` | PDF 변환 결과 |
+| `page.pdf` | PDF 변환 결과 (A4 최적화) |
 | `meta.json` | 페이지 메타데이터 (원본 API 응답) |
 | `attachments/` | 첨부파일 디렉터리 |
 
+### 메타데이터 파일
+
+#### `_meta/pages.json`
+Space의 모든 페이지 원본 API 응답 데이터. 전체 백업 복원 시 사용.
+
+#### `_meta/tree.json`
+페이지 계층 구조를 트리 형태로 저장. 트리 구조 조회 메뉴에서 생성.
+
+#### `meta.json` (각 페이지 폴더)
+개별 페이지의 메타데이터:
+```json
+{
+  "id": "1001",
+  "title": "Overview",
+  "spaceId": "1572879",
+  "parentId": null,
+  "status": "current",
+  "createdAt": "2024-01-15T10:30:00.000Z",
+  "body": { ... }
+}
+```
+
 ### 첨부파일 경로
+
 - 첨부파일은 페이지와 **동일한 디렉터리**에 `attachments/` 폴더로 저장
 - HTML/Markdown: 상대 경로 `./attachments/image.png`
 - PDF: 절대 경로 `file://.../attachments/image.png`
+
+### 장점
+
+1. **직관적 탐색**: 파일 탐색기에서 Confluence 구조 그대로 탐색 가능
+2. **상대 경로 유지**: 폴더 이동해도 내부 링크 유지
+3. **독립적 백업**: 각 페이지 폴더가 독립적으로 완결 (HTML + 첨부파일)
+4. **버전 관리 용이**: Git 등으로 변경 추적 가능
 
 ## 출력 포맷
 
