@@ -5,7 +5,7 @@ import os
 from pathlib import Path
 
 from confluence_client import ConfluenceClient
-from parser import parse_pages
+from parser import parse_pages, build_output_path_tree, build_page_map, safe_filename
 from tree_builder import build_tree, print_tree, save_tree_json, get_tree_stats
 from utils import setup_logging
 
@@ -135,15 +135,22 @@ def backup_flow(client: ConfluenceClient):
         logger.warning("Space에 페이지가 없습니다.")
         return
 
-    # 원본 JSON 저장
-    json_filename = f"pages_from_space_{target_space_id}.json"
-    json_path = f"./data/{json_filename}"
-    save_to_json(pages, json_path)
+    # 출력 디렉터리 설정: data/{SPACE_ID}_{SPACE_NAME}/
+    space_safe = safe_filename(target_space_name)
+    output_root = Path(f"./data/{target_space_id}_{space_safe}")
 
-    # 첨부파일 다운로드
-    output_root = Path(f"./data/space_{target_space_id}")
-    attachments_base = output_root / "attachments"
+    # 메타 데이터 디렉터리 생성
+    meta_dir = output_root / "_meta"
+    meta_dir.mkdir(parents=True, exist_ok=True)
 
+    # 원본 JSON 저장 (메타 디렉터리에)
+    json_path = meta_dir / "pages.json"
+    save_to_json(pages, str(json_path))
+
+    # 페이지 맵 생성 (트리 구조 경로 계산용)
+    page_map = build_page_map(pages)
+
+    # 첨부파일 다운로드 (각 페이지의 출력 디렉터리에 저장)
     logger.info("==========================================================")
     logger.info("첨부파일 다운로드를 시작합니다...")
     logger.info("==========================================================")
@@ -155,7 +162,11 @@ def backup_flow(client: ConfluenceClient):
         if not page_id:
             continue
         try:
-            result = client.download_attachments(page_id, str(attachments_base / page_id))
+            # 트리 구조에 따른 페이지 출력 디렉터리 결정
+            page_out_dir = build_output_path_tree(page, output_root, page_map)
+            # 첨부파일은 attachments/ 폴더에 저장
+            attachments_dir = page_out_dir / "attachments"
+            result = client.download_attachments(page_id, str(attachments_dir))
             total_downloaded += result["downloaded"]
             total_failed += result["failed"]
         except Exception as e:
@@ -168,12 +179,12 @@ def backup_flow(client: ConfluenceClient):
     logger.info("페이지 데이터 변환을 시작합니다...")
     logger.info("==========================================================")
 
-    results = parse_pages(pages, output_root, output_format, target_space_name, attachments_base)
+    results = parse_pages(pages, output_root, output_format, target_space_name)
 
     # 결과 출력
     logger.info("==========================================================")
     logger.info("백업 및 변환이 완료되었습니다!")
-    logger.info("원본 JSON: %s", json_path)
+    logger.info("메타 데이터: %s", json_path)
     logger.info("출력 디렉터리: %s", output_root.resolve())
 
     if "html" in results:
@@ -234,7 +245,7 @@ def tree_view_flow(client: ConfluenceClient):
 
     # 통계 출력
     stats = get_tree_stats(tree)
-    print(f"\n📊 통계:")
+    print(f"\n통계:")
     print(f"   총 페이지: {stats['total_pages']}개")
     print(f"   루트 페이지: {stats['root_pages']}개")
     print(f"   최대 깊이: {stats['max_depth']}단계")
@@ -243,7 +254,11 @@ def tree_view_flow(client: ConfluenceClient):
     try:
         save_choice = input("\n트리 구조를 JSON으로 저장할까요? (y/n): ").strip().lower()
         if save_choice == "y":
-            output_path = Path(f"./data/tree_{target_space_id}.json")
+            # 메타 디렉터리에 저장
+            space_safe = safe_filename(target_space_name)
+            meta_dir = Path(f"./data/{target_space_id}_{space_safe}/_meta")
+            meta_dir.mkdir(parents=True, exist_ok=True)
+            output_path = meta_dir / "tree.json"
             save_tree_json(tree, output_path)
     except (KeyboardInterrupt, EOFError):
         pass

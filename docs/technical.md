@@ -19,39 +19,49 @@ atlassian-backup-tool/
 
 ## 출력 디렉터리 구조
 
-파일명과 폴더명에 ID와 이름이 함께 표시됩니다. 특수문자와 공백은 언더바(`_`)로 치환됩니다.
+디렉터리 구조는 Confluence 페이지의 실제 계층 구조를 반영합니다.
+
+특수문자와 공백은 언더바(`_`)로 치환됩니다.
 
 ```
-data/
-├── pages_from_space_{SPACE_ID}.json              # 원본 API 응답 데이터
-├── tree_{SPACE_ID}.json                          # 트리 구조 (선택적)
-└── space_{SPACE_ID}/
-    ├── attachments/                              # 다운로드된 첨부파일/이미지
-    │   └── {PAGE_ID}/
-    │       ├── image1.png
-    │       ├── document.pdf
-    │       └── ...
-    ├── html/                                     # HTML 변환 결과
-    │   └── space-{SPACE_ID}_{SPACE_NAME}/
-    │       ├── folder-root/
-    │       │   ├── {PAGE_ID}_{TITLE}.html
-    │       │   └── {PAGE_ID}_{TITLE}.json
-    │       └── folder-{PARENT_ID}_{PARENT_TITLE}/
-    │           ├── {PAGE_ID}_{TITLE}.html
-    │           └── {PAGE_ID}_{TITLE}.json
-    ├── markdown/                                 # Markdown 변환 결과
-    │   └── space-{SPACE_ID}_{SPACE_NAME}/
-    │       ├── folder-root/
-    │       │   └── {PAGE_ID}_{TITLE}.md
-    │       └── folder-{PARENT_ID}_{PARENT_TITLE}/
-    │           └── {PAGE_ID}_{TITLE}.md
-    └── pdf/                                      # PDF 변환 결과
-        └── space-{SPACE_ID}_{SPACE_NAME}/
-            ├── folder-root/
-            │   └── {PAGE_ID}_{TITLE}.pdf
-            └── folder-{PARENT_ID}_{PARENT_TITLE}/
-                └── {PAGE_ID}_{TITLE}.pdf
+data/{SPACE_ID}_{SPACE_NAME}/
+├── _meta/
+│   ├── pages.json          # 원본 API 응답 데이터
+│   └── tree.json           # 트리 구조 (선택적)
+└── pages/
+    ├── {ROOT_PAGE_ID}_{TITLE}/
+    │   ├── page.html
+    │   ├── page.md
+    │   ├── page.pdf
+    │   ├── meta.json
+    │   ├── attachments/
+    │   │   └── image.png
+    │   └── {CHILD_PAGE_ID}_{TITLE}/      # 자식 페이지 (중첩)
+    │       ├── page.html
+    │       ├── page.md
+    │       ├── page.pdf
+    │       ├── meta.json
+    │       ├── attachments/
+    │       └── {GRANDCHILD_ID}_{TITLE}/  # 손자 페이지
+    │           └── ...
+    └── {ANOTHER_ROOT_ID}_{TITLE}/
+        └── ...
 ```
+
+### 파일명 규칙
+
+| 파일 | 설명 |
+|------|------|
+| `page.html` | HTML 변환 결과 |
+| `page.md` | Markdown 변환 결과 |
+| `page.pdf` | PDF 변환 결과 |
+| `meta.json` | 페이지 메타데이터 (원본 API 응답) |
+| `attachments/` | 첨부파일 디렉터리 |
+
+### 첨부파일 경로
+- 첨부파일은 페이지와 **동일한 디렉터리**에 `attachments/` 폴더로 저장
+- HTML/Markdown: 상대 경로 `./attachments/image.png`
+- PDF: 절대 경로 `file://.../attachments/image.png`
 
 ## 출력 포맷
 
@@ -132,9 +142,9 @@ Pygments 라이브러리를 사용하여 코드 블록에 언어별 구문 강�
 | 외부 URL 이미지 (`ri:url`) | GitHub, 외부 서버 이미지 | URL 그대로 사용 |
 
 ### 포맷별 처리
-- **HTML**: 상대 경로 (`../../../attachments/{PAGE_ID}/image.png`) 또는 외부 URL
-- **Markdown**: 마크다운 문법 (`![alt](url)`)
-- **PDF**: 절대 경로로 이미지 임베드 (`file://...`)
+- **HTML**: 상대 경로 (`./{PAGE_ID}_attachments/image.png`) 또는 외부 URL
+- **Markdown**: 마크다운 문법 (`![alt](./{PAGE_ID}_attachments/image.png)`)
+- **PDF**: 절대 경로로 이미지 임베드 (`file://.../{PAGE_ID}_attachments/image.png`)
 
 ### 첨부파일 자동 다운로드
 - 페이지의 모든 첨부파일/이미지가 자동으로 다운로드됩니다

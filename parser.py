@@ -225,6 +225,54 @@ def build_page_lookup(pages: list) -> dict:
     return {page.get("id"): page.get("title", "") for page in pages}
 
 
+def build_page_map(pages: list) -> dict:
+    """페이지 ID -> 페이지 전체 데이터 매핑 생성"""
+    return {page.get("id"): page for page in pages}
+
+
+def get_ancestor_chain(page_id: str, page_map: dict) -> list[tuple[str, str]]:
+    """
+    페이지의 조상 체인 반환 [(id, title), ...] 루트부터 현재 페이지까지
+
+    :param page_id: 현재 페이지 ID
+    :param page_map: 페이지 ID -> 페이지 데이터 매핑
+    :return: 루트부터 현재 페이지까지의 (id, title) 튜플 리스트
+    """
+    ancestors = []
+    current_id = page_id
+
+    while current_id:
+        page = page_map.get(current_id)
+        if not page:
+            break
+        ancestors.append((current_id, page.get("title", "")))
+        current_id = page.get("parentId")
+
+    ancestors.reverse()  # 루트 -> 현재 순서
+    return ancestors
+
+
+def build_output_path_tree(page: dict, output_root: Path, page_map: dict) -> Path:
+    """
+    트리 구조를 따라 페이지 출력 경로 생성
+
+    :param page: 페이지 데이터
+    :param output_root: 출력 루트 디렉터리
+    :param page_map: 페이지 ID -> 페이지 데이터 매핑
+    :return: 페이지 출력 디렉터리 경로
+    """
+    page_id = page.get("id")
+    ancestors = get_ancestor_chain(page_id, page_map)
+
+    path = output_root / "pages"
+    for pid, title in ancestors:
+        folder_name = f"{pid}_{safe_filename(title)}"
+        path = path / folder_name
+
+    path.mkdir(parents=True, exist_ok=True)
+    return path
+
+
 # Confluence 언어명 -> Pygments 언어명 매핑
 LANGUAGE_ALIASES = {
     "c#": "csharp",
@@ -328,37 +376,6 @@ def confluence_code_macro_to_fence(html_content: str) -> str:
         converted = converted.replace(placeholder, code_block)
 
     return converted
-
-
-def build_output_dir(
-    page: dict,
-    output_root: Path,
-    space_name: str = "",
-    page_lookup: dict | None = None,
-) -> Path:
-    """
-    space-id_name / folder-id_name 기준으로 디렉터리 생성 경로 결정
-    """
-    space_id = page.get("spaceId", "unknown-space")
-    parent_id = page.get("parentId")
-
-    # Space 디렉터리: space-{ID}_{NAME}
-    space_safe = safe_filename(space_name)
-    space_dir_name = f"space-{space_id}_{space_safe}" if space_safe else f"space-{space_id}"
-    space_dir = output_root / space_dir_name
-
-    if parent_id:
-        # 부모 페이지 제목 조회
-        parent_title = ""
-        if page_lookup:
-            parent_title = safe_filename(page_lookup.get(parent_id, ""))
-        folder_name = f"folder-{parent_id}_{parent_title}" if parent_title else f"folder-{parent_id}"
-        folder_dir = space_dir / folder_name
-    else:
-        folder_dir = space_dir / "folder-root"
-
-    folder_dir.mkdir(parents=True, exist_ok=True)
-    return folder_dir
 
 
 def build_html_doc(
@@ -607,7 +624,8 @@ def convert_to_html(
     """
     output_root.mkdir(parents=True, exist_ok=True)
 
-    # 부모 페이지 제목 조회용 lookup 생성
+    # 페이지 맵 생성 (트리 구조 경로 계산용)
+    page_map = build_page_map(pages)
     page_lookup = build_page_lookup(pages)
 
     html_count = 0
@@ -622,11 +640,11 @@ def convert_to_html(
             logger.warning("[SKIP] id 없음 → 이 항목은 건너뜀")
             continue
 
-        safe_title = safe_filename(title)
-        out_dir = build_output_dir(page, output_root, space_name, page_lookup)
+        # 트리 구조에 따른 출력 디렉터리 결정
+        out_dir = build_output_path_tree(page, output_root, page_map)
 
-        # 메타 JSON 저장: {id}_{title}.json
-        meta_path = out_dir / f"{page_id}_{safe_title}.json"
+        # 메타 JSON 저장: meta.json
+        meta_path = out_dir / "meta.json"
         meta_path.write_text(
             json.dumps(page, indent=4, ensure_ascii=False),
             encoding="utf-8",
@@ -640,22 +658,17 @@ def convert_to_html(
             continue
 
         # Confluence 매크로를 HTML로 변환
-        # HTML 위치: output_root/html/space-X/folder-Y/file.html
-        # 첨부파일 위치: output_root/attachments/{page_id}/
-        # 상대 경로: ../../../attachments/{page_id}/
-        if attachments_base:
-            attachments_path = f"../../../attachments/{page_id}"
-        else:
-            attachments_path = ""
+        # 첨부파일은 동일 디렉터리 내 attachments/ 에 저장
+        attachments_path = "./attachments"
         body_html = convert_all_macros(body_html, attachments_path, for_html=True)
 
         # 부모 페이지 이름 조회
         parent_id = page.get("parentId")
         parent_name = page_lookup.get(parent_id, "") if parent_id else ""
 
-        # HTML 저장: {id}_{title}.html
+        # HTML 저장: page.html
         html_doc = build_html_doc(page_id, title, body_html, page, space_name, parent_name)
-        html_path = out_dir / f"{page_id}_{safe_title}.html"
+        html_path = out_dir / "page.html"
         html_path.write_text(html_doc, encoding="utf-8")
         html_count += 1
 
@@ -679,7 +692,8 @@ def convert_to_markdown(
     """
     output_root.mkdir(parents=True, exist_ok=True)
 
-    # 부모 페이지 제목 조회용 lookup 생성
+    # 페이지 맵 생성 (트리 구조 경로 계산용)
+    page_map = build_page_map(pages)
     page_lookup = build_page_lookup(pages)
 
     md_count = 0
@@ -688,7 +702,6 @@ def convert_to_markdown(
     for page in pages:
         page_id = page.get("id")
         parent_id = page.get("parentId")
-        parent_type = page.get("parentType", "page")
         space_id = page.get("spaceId")
         title = page.get("title", "")
         body_storage = page.get("body", {}).get("storage", {}).get("value", "")
@@ -703,40 +716,21 @@ def convert_to_markdown(
             skipped_count += 1
             continue
 
-        safe_title = safe_filename(title)
-
-        # 첨부파일 경로 설정 (markdown에서 상대 경로로 참조)
-        # Markdown 위치: output_root/markdown/space-X/folder-Y/file.md
-        # 첨부파일 위치: output_root/attachments/{page_id}/
-        # 상대 경로: ../../../attachments/{page_id}/
-        if attachments_base:
-            attachments_path = f"../../../attachments/{page_id}"
-        else:
-            attachments_path = ""
+        # 첨부파일은 동일 디렉터리 내 attachments/ 에 저장
+        attachments_path = "./attachments"
 
         # Confluence 매크로 변환 (코드 제외) - 이미지 등 처리
         body_converted = convert_all_macros(body_storage, attachments_path, for_html=False)
         # 코드 블록을 마크다운 펜스로 변환 (placeholder 보호 방식)
         md_body = confluence_code_macro_to_fence(body_converted)
 
-        # Space 디렉터리
-        space_safe = safe_filename(space_name)
-        space_dir_name = f"space-{space_id}_{space_safe}" if space_safe else f"space-{space_id}"
-
-        # 디렉터리 구조: space-{id}_{name}/folder-{parent_id}_{parent_title}/
-        parent_name = page_lookup.get(parent_id, "") if parent_id else ""
-        if parent_id:
-            parent_title = safe_filename(parent_name)
-            folder_name = f"folder-{parent_id}_{parent_title}" if parent_title else f"folder-{parent_id}"
-            file_dir = output_root / space_dir_name / folder_name
-        else:
-            file_dir = output_root / space_dir_name / "folder-root"
-
-        file_dir.mkdir(parents=True, exist_ok=True)
-        file_path = file_dir / f"{page_id}_{safe_title}.md"
+        # 트리 구조에 따른 출력 디렉터리 결정
+        out_dir = build_output_path_tree(page, output_root, page_map)
+        file_path = out_dir / "page.md"
 
         # 메타정보: ID (이름) 형식
         space_display = f"{space_id} ({space_name})" if space_name else f"{space_id} (none)"
+        parent_name = page_lookup.get(parent_id, "") if parent_id else ""
         parent_display = f"{parent_id} ({parent_name})" if parent_id else "none"
         if parent_id and not parent_name:
             parent_display = f"{parent_id} (none)"
@@ -747,7 +741,7 @@ def convert_to_markdown(
 
         file_path.write_text(content, encoding="utf-8")
         md_count += 1
-        logger.info("Written: %s", file_path.name)
+        logger.info("Written: %s", file_path)
 
     return {"md_count": md_count, "skipped_count": skipped_count}
 
@@ -773,6 +767,8 @@ def convert_to_pdf(
     output_root.mkdir(parents=True, exist_ok=True)
     font_config = FontConfiguration()
 
+    # 페이지 맵 생성 (트리 구조 경로 계산용)
+    page_map = build_page_map(pages)
     page_lookup = build_page_lookup(pages)
 
     pdf_count = 0
@@ -793,14 +789,13 @@ def convert_to_pdf(
             skipped_count += 1
             continue
 
-        safe_title = safe_filename(title)
-        out_dir = build_output_dir(page, output_root, space_name, page_lookup)
+        # 트리 구조에 따른 출력 디렉터리 결정
+        out_dir = build_output_path_tree(page, output_root, page_map)
 
-        # Confluence 매크로를 HTML로 변환 (file:// 절대 경로 사용)
-        if attachments_base:
-            attachments_path = f"file://{(attachments_base / page_id).resolve()}"
-        else:
-            attachments_path = ""
+        # Confluence 매크로를 HTML로 변환 (PDF용 file:// 절대 경로)
+        # 첨부파일은 동일 디렉터리 내 attachments/ 에 저장
+        attachments_dir = out_dir / "attachments"
+        attachments_path = f"file://{attachments_dir.resolve()}"
         body_html = convert_all_macros(body_html, attachments_path, for_html=True)
 
         # 부모 페이지 이름 조회
@@ -810,8 +805,8 @@ def convert_to_pdf(
         # HTML 문서 생성
         html_doc = build_html_doc(page_id, title, body_html, page, space_name, parent_name)
 
-        # PDF 저장: {id}_{title}.pdf
-        pdf_path = out_dir / f"{page_id}_{safe_title}.pdf"
+        # PDF 저장: page.pdf
+        pdf_path = out_dir / "page.pdf"
         try:
             # optimize_size=() 로 폰트 서브셋팅 비활성화
             HTML(string=html_doc).write_pdf(
@@ -820,7 +815,7 @@ def convert_to_pdf(
                 optimize_size=(),
             )
             pdf_count += 1
-            logger.info("Written: %s", pdf_path.name)
+            logger.info("Written: %s", pdf_path)
         except Exception as e:
             logger.warning("[WARN] PDF 변환 실패 (id=%s): %s", page_id, e)
             skipped_count += 1
@@ -847,9 +842,9 @@ def parse_pages(
     """
     results = {}
 
+    # 모든 포맷이 동일한 디렉터리 구조 사용 (첨부파일 공유)
     if output_format in ("html", "both", "all"):
-        html_output = output_root / "html"
-        html_result = convert_to_html(pages, html_output, space_name, attachments_base)
+        html_result = convert_to_html(pages, output_root, space_name, attachments_base)
         results["html"] = html_result
         logger.info(
             "HTML 변환 완료: %d개 HTML, %d개 JSON",
@@ -858,8 +853,7 @@ def parse_pages(
         )
 
     if output_format in ("markdown", "both", "all"):
-        md_output = output_root / "markdown"
-        md_result = convert_to_markdown(pages, md_output, space_name, attachments_base)
+        md_result = convert_to_markdown(pages, output_root, space_name, attachments_base)
         results["markdown"] = md_result
         logger.info(
             "Markdown 변환 완료: %d개 MD, %d개 스킵",
@@ -868,8 +862,7 @@ def parse_pages(
         )
 
     if output_format in ("pdf", "all"):
-        pdf_output = output_root / "pdf"
-        pdf_result = convert_to_pdf(pages, pdf_output, space_name, attachments_base)
+        pdf_result = convert_to_pdf(pages, output_root, space_name, attachments_base)
         results["pdf"] = pdf_result
         logger.info(
             "PDF 변환 완료: %d개 PDF, %d개 스킵",
