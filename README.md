@@ -46,13 +46,13 @@ API_TOKEN=your-api-token
 
 ## 사용 방법
 
-### 1. 데이터 다운로드
+### 통합 백업 (권장)
 
 ```bash
 python main.py
 ```
 
-실행하면 백업할 Space를 선택하는 대화형 프롬프트가 표시됩니다:
+실행하면 대화형 프롬프트가 표시됩니다:
 
 ```
 2025-01-15 10:30:00 - main - INFO - Confluence 백업 작업을 시작합니다.
@@ -62,36 +62,50 @@ python main.py
   [3] Team Handbook (ID: 2019384)
 번호를 입력하세요: 1
 2025-01-15 10:30:05 - main - INFO - 선택된 Space: 'Engineering Wiki' (ID: 1572879)
-2025-01-15 10:30:10 - main - INFO - 데이터를 성공적으로 저장했습니다. -> ./data/pages_from_space_1572879.json
-2025-01-15 10:30:10 - main - INFO - ==========================================================
-2025-01-15 10:30:10 - main - INFO - 페이지 데이터 다운로드가 완료되었습니다.
+2025-01-15 10:30:05 - main - INFO - 출력 포맷을 선택해주세요:
+  [1] HTML (CSS 포함된 문서)
+  [2] Markdown (코드 블록 변환 포함)
+  [3] HTML + Markdown (둘 다)
+번호를 입력하세요: 3
+2025-01-15 10:30:08 - main - INFO - 선택된 출력 포맷: both
+2025-01-15 10:30:15 - main - INFO - 데이터를 성공적으로 저장했습니다. -> ./data/pages_from_space_1572879.json
+2025-01-15 10:30:15 - main - INFO - ==========================================================
+2025-01-15 10:30:15 - main - INFO - 페이지 데이터 다운로드 완료. 변환을 시작합니다...
+2025-01-15 10:30:20 - main - INFO - ==========================================================
+2025-01-15 10:30:20 - main - INFO - 백업 및 변환이 완료되었습니다!
+2025-01-15 10:30:20 - main - INFO - 원본 JSON: ./data/pages_from_space_1572879.json
+2025-01-15 10:30:20 - main - INFO - 출력 디렉터리: /path/to/data/space_1572879
+2025-01-15 10:30:20 - main - INFO -   HTML: 45개 파일, JSON 메타: 50개
+2025-01-15 10:30:20 - main - INFO -   Markdown: 45개 파일 (스킵: 5개)
 ```
 
-선택한 Space의 모든 페이지가 `./data/` 디렉터리에 JSON 파일로 저장됩니다.
+### 단독 파싱 (기존 JSON 파일 변환)
 
-### 2. HTML 변환
-
-다운로드된 JSON 데이터를 HTML로 변환하려면 `parser.py`의 경로 설정을 수정한 뒤 실행합니다:
-
-```python
-# parser.py 상단의 경로 설정 수정
-INPUT_PATH = Path("./data/pages_from_space_{SPACE_ID}.json")
-OUTPUT_ROOT = Path("./data/space_{SPACE_ID}")
-```
+이미 다운로드된 JSON 파일을 변환할 때 사용합니다:
 
 ```bash
-python parser.py
+python parser.py <input_json> [output_dir] [format]
 ```
 
-각 페이지는 CSS가 포함된 HTML 파일과 메타데이터 JSON 파일로 변환됩니다.
+**예시:**
+```bash
+# HTML로 변환
+python parser.py ./data/pages_from_space_1572879.json ./data/output html
+
+# Markdown으로 변환
+python parser.py ./data/pages_from_space_1572879.json ./data/output markdown
+
+# 둘 다 변환
+python parser.py ./data/pages_from_space_1572879.json ./data/output both
+```
 
 ## 프로젝트 구조
 
 ```
 atlassian-backup-tool/
-├── main.py              # 진입점, 대화형 백업 흐름 관리
-├── confluence_client.py # Confluence Cloud API 클라이언트
-├── parser.py            # JSON → HTML 변환
+├── main.py              # 진입점, 대화형 백업 흐름 (다운로드 + 변환 통합)
+├── confluence_client.py # Confluence Cloud API 클라이언트 (atlassian-python-api 사용)
+├── parser.py            # JSON → HTML/Markdown 변환
 ├── utils.py             # 로깅 유틸리티
 ├── pyproject.toml       # Poetry 프로젝트 설정
 ├── requirements.txt     # Python 의존성 (pip용)
@@ -104,13 +118,31 @@ atlassian-backup-tool/
 
 ```
 data/
-├── pages_from_space_{SPACE_ID}.json  # 다운로드된 원본 데이터
+├── pages_from_space_{SPACE_ID}.json    # 원본 API 응답 데이터
 └── space_{SPACE_ID}/
-    └── space-{SPACE_ID}/
-        ├── folder-root/              # 최상위 페이지
-        │   ├── {PAGE_ID}.html
-        │   └── {PAGE_ID}.json
-        └── folder-{PARENT_ID}/       # 하위 페이지 (부모 ID별 그룹)
-            ├── {PAGE_ID}.html
-            └── {PAGE_ID}.json
+    ├── html/                           # HTML 변환 결과
+    │   └── space-{SPACE_ID}/
+    │       ├── folder-root/            # 최상위 페이지
+    │       │   ├── {PAGE_ID}.html
+    │       │   └── {PAGE_ID}.json      # 메타데이터
+    │       └── folder-{PARENT_ID}/     # 하위 페이지
+    │           ├── {PAGE_ID}.html
+    │           └── {PAGE_ID}.json
+    └── markdown/                       # Markdown 변환 결과
+        ├── root/                       # 최상위 페이지
+        │   └── {PAGE_ID}_{TITLE}.md
+        └── {PARENT_ID}_{PARENT_TYPE}/  # 하위 페이지
+            └── {PAGE_ID}_{TITLE}.md
 ```
+
+## 출력 포맷
+
+### HTML
+- CSS가 포함된 완성된 HTML 문서
+- 메타데이터 (ID, Space, Folder, Status, Created) 표시
+- 각 페이지별 JSON 메타데이터 파일 함께 생성
+
+### Markdown
+- Confluence 코드 매크로를 마크다운 코드 블록으로 변환
+- HTML을 마크다운으로 자동 변환 (html-to-markdown 라이브러리 사용)
+- 메타데이터는 HTML 주석으로 포함
