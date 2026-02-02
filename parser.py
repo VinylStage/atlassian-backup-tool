@@ -328,6 +328,62 @@ def convert_to_markdown(
     return {"md_count": md_count, "skipped_count": skipped_count}
 
 
+def convert_to_pdf(
+    pages: list,
+    output_root: Path,
+    space_name: str = "",
+) -> dict:
+    """
+    페이지 데이터를 PDF 파일로 변환합니다.
+
+    :param pages: 페이지 데이터 리스트
+    :param output_root: 출력 루트 디렉터리
+    :param space_name: Space 이름
+    :return: {"pdf_count": int, "skipped_count": int}
+    """
+    from weasyprint import HTML
+
+    output_root.mkdir(parents=True, exist_ok=True)
+
+    page_lookup = build_page_lookup(pages)
+
+    pdf_count = 0
+    skipped_count = 0
+
+    for page in pages:
+        page_id = page.get("id")
+        title = page.get("title", "")
+        body_html = page.get("body", {}).get("storage", {}).get("value", "")
+
+        if not page_id:
+            logger.warning("[SKIP] id 없음 → 이 항목은 건너뜀")
+            skipped_count += 1
+            continue
+
+        if not body_html:
+            logger.warning("[SKIP] body 없음 (id=%s)", page_id)
+            skipped_count += 1
+            continue
+
+        safe_title = safe_filename(title)
+        out_dir = build_output_dir(page, output_root, space_name, page_lookup)
+
+        # HTML 문서 생성
+        html_doc = build_html_doc(page_id, title, body_html, page)
+
+        # PDF 저장: {id}_{title}.pdf
+        pdf_path = out_dir / f"{page_id}_{safe_title}.pdf"
+        try:
+            HTML(string=html_doc).write_pdf(pdf_path)
+            pdf_count += 1
+            logger.info("Written: %s", pdf_path.name)
+        except Exception as e:
+            logger.warning("[WARN] PDF 변환 실패 (id=%s): %s", page_id, e)
+            skipped_count += 1
+
+    return {"pdf_count": pdf_count, "skipped_count": skipped_count}
+
+
 def parse_pages(
     pages: list,
     output_root: Path,
@@ -339,13 +395,13 @@ def parse_pages(
 
     :param pages: 페이지 데이터 리스트
     :param output_root: 출력 루트 디렉터리
-    :param output_format: "html", "markdown", 또는 "both"
+    :param output_format: "html", "markdown", "pdf", "both", 또는 "all"
     :param space_name: Space 이름
     :return: 변환 결과 통계
     """
     results = {}
 
-    if output_format in ("html", "both"):
+    if output_format in ("html", "both", "all"):
         html_output = output_root / "html"
         html_result = convert_to_html(pages, html_output, space_name)
         results["html"] = html_result
@@ -355,7 +411,7 @@ def parse_pages(
             html_result["json_count"],
         )
 
-    if output_format in ("markdown", "both"):
+    if output_format in ("markdown", "both", "all"):
         md_output = output_root / "markdown"
         md_result = convert_to_markdown(pages, md_output, space_name)
         results["markdown"] = md_result
@@ -363,6 +419,16 @@ def parse_pages(
             "Markdown 변환 완료: %d개 MD, %d개 스킵",
             md_result["md_count"],
             md_result["skipped_count"],
+        )
+
+    if output_format in ("pdf", "all"):
+        pdf_output = output_root / "pdf"
+        pdf_result = convert_to_pdf(pages, pdf_output, space_name)
+        results["pdf"] = pdf_result
+        logger.info(
+            "PDF 변환 완료: %d개 PDF, %d개 스킵",
+            pdf_result["pdf_count"],
+            pdf_result["skipped_count"],
         )
 
     return results
