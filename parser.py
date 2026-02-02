@@ -189,26 +189,43 @@ def convert_toc_macro(html_content: str) -> str:
     return TOC_MACRO_RE.sub("<!-- TOC removed -->", html_content)
 
 
-def convert_view_file_macro(html_content: str, attachments_path: str = "") -> str:
+def convert_view_file_macro(html_content: str, attachments_path: str = "", show_relative_path: bool = False) -> str:
     """
     Confluence view-file 매크로를 파일 링크로 변환합니다.
+
+    :param html_content: 변환할 HTML 콘텐츠
+    :param attachments_path: 첨부파일 경로 (링크에 사용)
+    :param show_relative_path: True면 상대 경로를 텍스트로 표시 (PDF용)
     """
     def _repl(m: re.Match) -> str:
         filename = m.group("filename")
         href = f"{attachments_path}/{filename}" if attachments_path else filename
         filename_safe = html.escape(filename)
+        relative_path = f"./attachments/{filename}"
+
+        if show_relative_path:
+            return (
+                f'<a href="{href}" class="attachment-link">📎 {filename_safe}</a>'
+                f'<br/><small style="color: #666; font-size: 7pt;">({relative_path})</small>'
+            )
         return f'<a href="{href}" class="attachment-link">📎 {filename_safe}</a>'
 
     return VIEW_FILE_MACRO_RE.sub(_repl, html_content)
 
 
-def convert_all_macros(html_content: str, attachments_path: str = "", for_html: bool = True) -> str:
+def convert_all_macros(
+    html_content: str,
+    attachments_path: str = "",
+    for_html: bool = True,
+    show_relative_path: bool = False,
+) -> str:
     """
     모든 Confluence 매크로를 HTML로 변환합니다.
 
     :param html_content: 변환할 HTML 콘텐츠
     :param attachments_path: 첨부파일 경로
     :param for_html: True면 HTML 출력용 (코드를 <pre><code>로 변환), False면 Markdown용 (코드 변환 제외)
+    :param show_relative_path: True면 첨부파일 링크에 상대 경로 텍스트 표시 (PDF용)
     """
     content = convert_ac_image_to_img(html_content, attachments_path)
     if for_html:
@@ -216,7 +233,7 @@ def convert_all_macros(html_content: str, attachments_path: str = "", for_html: 
     content = convert_expand_macro(content)
     content = convert_callout_macros(content)
     content = convert_toc_macro(content)
-    content = convert_view_file_macro(content, attachments_path)
+    content = convert_view_file_macro(content, attachments_path, show_relative_path)
     return content
 
 
@@ -796,7 +813,8 @@ def convert_to_pdf(
         # 첨부파일은 동일 디렉터리 내 attachments/ 에 저장
         attachments_dir = out_dir / "attachments"
         attachments_path = f"file://{attachments_dir.resolve()}"
-        body_html = convert_all_macros(body_html, attachments_path, for_html=True)
+        # PDF는 절대 경로 사용하지만, 이동 시 참조용으로 상대 경로도 텍스트로 표시
+        body_html = convert_all_macros(body_html, attachments_path, for_html=True, show_relative_path=True)
 
         # 부모 페이지 이름 조회
         parent_id = page.get("parentId")
