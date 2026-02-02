@@ -72,3 +72,64 @@ class ConfluenceClient:
         )
         logger.info("Found %d pages in space %s.", len(pages), space_id)
         return pages
+
+    def get_attachments(self, page_id: str) -> list:
+        """
+        페이지의 첨부파일 목록을 가져옵니다.
+
+        :param page_id: 페이지 ID
+        :return: 첨부파일 정보 리스트
+        """
+        result = self._confluence.get_attachments_from_content(page_id)
+        return result.get("results", [])
+
+    def download_attachments(self, page_id: str, output_dir: str) -> dict:
+        """
+        페이지의 모든 첨부파일을 다운로드합니다.
+
+        :param page_id: 페이지 ID
+        :param output_dir: 저장할 디렉터리 경로
+        :return: {"downloaded": int, "failed": int, "files": list}
+        """
+        from pathlib import Path
+
+        output_path = Path(output_dir)
+        output_path.mkdir(parents=True, exist_ok=True)
+
+        attachments = self.get_attachments(page_id)
+        downloaded = 0
+        failed = 0
+        files = []
+
+        for att in attachments:
+            filename = att.get("title", "")
+            download_link = att.get("_links", {}).get("download", "")
+
+            if not filename or not download_link:
+                failed += 1
+                continue
+
+            try:
+                # 다운로드 URL 구성
+                download_url = f"https://{self.domain}/wiki{download_link}"
+
+                # 인증 헤더와 함께 다운로드
+                response = requests.get(
+                    download_url,
+                    auth=(self.email, self.api_token),
+                    timeout=30,
+                )
+                response.raise_for_status()
+
+                # 파일 저장
+                file_path = output_path / filename
+                file_path.write_bytes(response.content)
+                files.append(filename)
+                downloaded += 1
+                logger.info("Downloaded: %s", filename)
+
+            except Exception as e:
+                logger.warning("Failed to download %s: %s", filename, e)
+                failed += 1
+
+        return {"downloaded": downloaded, "failed": failed, "files": files}

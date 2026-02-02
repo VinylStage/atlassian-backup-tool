@@ -140,13 +140,35 @@ def backup_flow(client: ConfluenceClient):
     json_path = f"./data/{json_filename}"
     save_to_json(pages, json_path)
 
-    # 선택한 포맷으로 변환
+    # 첨부파일 다운로드
+    output_root = Path(f"./data/space_{target_space_id}")
+    attachments_base = output_root / "attachments"
+
     logger.info("==========================================================")
-    logger.info("페이지 데이터 다운로드 완료. 변환을 시작합니다...")
+    logger.info("첨부파일 다운로드를 시작합니다...")
     logger.info("==========================================================")
 
-    output_root = Path(f"./data/space_{target_space_id}")
-    results = parse_pages(pages, output_root, output_format, target_space_name)
+    total_downloaded = 0
+    total_failed = 0
+    for page in pages:
+        page_id = page.get("id")
+        if not page_id:
+            continue
+        try:
+            result = client.download_attachments(page_id, str(attachments_base / page_id))
+            total_downloaded += result["downloaded"]
+            total_failed += result["failed"]
+        except Exception as e:
+            logger.warning("첨부파일 다운로드 실패 (page_id=%s): %s", page_id, e)
+
+    logger.info("첨부파일 다운로드 완료: %d개 성공, %d개 실패", total_downloaded, total_failed)
+
+    # 선택한 포맷으로 변환
+    logger.info("==========================================================")
+    logger.info("페이지 데이터 변환을 시작합니다...")
+    logger.info("==========================================================")
+
+    results = parse_pages(pages, output_root, output_format, target_space_name, attachments_base)
 
     # 결과 출력
     logger.info("==========================================================")
