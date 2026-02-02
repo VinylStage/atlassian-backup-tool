@@ -7,6 +7,10 @@ import uuid
 from pathlib import Path
 
 from html_to_markdown import convert
+from pygments import highlight
+from pygments.lexers import get_lexer_by_name, guess_lexer, TextLexer
+from pygments.formatters import HtmlFormatter
+from pygments.util import ClassNotFound
 
 from utils import setup_logging
 
@@ -27,15 +31,23 @@ _os2.table_O_S_2f_2.setUnicodeRanges = _patched_setUnicodeRanges
 
 logger = setup_logging("parser")
 
-# Confluence 코드 매크로 정규식
+# Confluence 코드 매크로 정규식 - 전체 매크로 캡처
 CODE_MACRO_RE = re.compile(
     r'<ac:structured-macro\b[^>]*\bac:name="code"[^>]*>'
-    r"(?:.*?)"
-    r'(?:<ac:parameter\b[^>]*\bac:name="language"[^>]*>\s*'
-    r"(?P<lang>[^<]+?)\s*</ac:parameter>)?"
-    r"(?:.*?)"
-    r"<ac:plain-text-body><!\[CDATA\[(?P<body>.*?)\]\]></ac:plain-text-body>"
-    r"(?:.*?)</ac:structured-macro>",
+    r"(?P<content>.*?)"
+    r"</ac:structured-macro>",
+    re.DOTALL,
+)
+
+# 코드 매크로 내부에서 언어 추출
+CODE_LANG_RE = re.compile(
+    r'<ac:parameter[^>]*ac:name="language"[^>]*>\s*(?P<lang>[^<]+?)\s*</ac:parameter>',
+    re.DOTALL,
+)
+
+# 코드 매크로 내부에서 본문 추출
+CODE_BODY_RE = re.compile(
+    r"<ac:plain-text-body><!\[CDATA\[(?P<body>.*?)\]\]></ac:plain-text-body>",
     re.DOTALL,
 )
 
@@ -213,14 +225,64 @@ def build_page_lookup(pages: list) -> dict:
     return {page.get("id"): page.get("title", "") for page in pages}
 
 
+# Confluence 언어명 -> Pygments 언어명 매핑
+LANGUAGE_ALIASES = {
+    "c#": "csharp",
+    "c++": "cpp",
+    "js": "javascript",
+    "ts": "typescript",
+    "py": "python",
+    "rb": "ruby",
+    "yml": "yaml",
+    "sh": "bash",
+    "shell": "bash",
+    "dockerfile": "docker",
+    "objc": "objective-c",
+    "objective-c": "objectivec",
+}
+
+
+def get_pygments_lexer(lang: str):
+    """언어명으로 Pygments Lexer를 가져옵니다."""
+    if not lang:
+        return TextLexer()
+
+    # 언어 별칭 처리
+    lang_lower = lang.lower().strip()
+    mapped_lang = LANGUAGE_ALIASES.get(lang_lower, lang_lower)
+
+    try:
+        return get_lexer_by_name(mapped_lang)
+    except ClassNotFound:
+        # 언어를 찾을 수 없으면 일반 텍스트로 처리
+        logger.debug("Unknown language '%s', using plain text", lang)
+        return TextLexer()
+
+
 def confluence_code_macro_to_html(html_content: str) -> str:
-    """Confluence 코드 매크로를 HTML pre/code 태그로 변환 (HTML/PDF 출력용)"""
+    """Confluence 코드 매크로를 Pygments로 구문 강조된 HTML로 변환 (HTML/PDF 출력용)"""
 
     def _repl(m: re.Match) -> str:
-        lang = (m.group("lang") or "").strip()
-        body = html.escape(m.group("body") or "").replace("\r\n", "\n")
+        content = m.group("content") or ""
+
+        # 언어 추출
+        lang_match = CODE_LANG_RE.search(content)
+        lang = lang_match.group("lang").strip() if lang_match else ""
+
+        # 본문 추출
+        body_match = CODE_BODY_RE.search(content)
+        body = (body_match.group("body") if body_match else "").replace("\r\n", "\n")
+
+        if not body:
+            return ""
+
+        # Pygments로 구문 강조
+        lexer = get_pygments_lexer(lang)
+        formatter = HtmlFormatter(nowrap=True, noclasses=True)  # 인라인 스타일 사용
+        highlighted = highlight(body, lexer, formatter)
+
         lang_attr = f' class="language-{lang}"' if lang else ""
-        return f'<pre><code{lang_attr}>{body}</code></pre>'
+        return f'<pre><code{lang_attr}>{highlighted}</code></pre>'
 
     return CODE_MACRO_RE.sub(_repl, html_content)
 
@@ -232,8 +294,19 @@ def confluence_code_macro_to_fence(html_content: str) -> str:
     code_blocks = {}
 
     def _extract_code(m: re.Match) -> str:
-        lang = (m.group("lang") or "").strip()
-        body = (m.group("body") or "").replace("\r\n", "\n").rstrip("\n")
+        content = m.group("content") or ""
+
+        # 언어 추출
+        lang_match = CODE_LANG_RE.search(content)
+        lang = lang_match.group("lang").strip() if lang_match else ""
+
+        # 본문 추출
+        body_match = CODE_BODY_RE.search(content)
+        body = (body_match.group("body") if body_match else "").replace("\r\n", "\n").rstrip("\n")
+
+        if not body:
+            return ""
+
         fence = "```"
         if lang:
             code_block = f"\n{fence}{lang}\n{body}\n{fence}\n"
